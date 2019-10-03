@@ -25,11 +25,11 @@ Below is FP In Scala's implementation of lazy list called `Stream`.
 ```scala
 import Stream._  // required to override Scala's stdlib Stream
 trait Stream[+A] {
-  // The arrow => in front of the argument type B means that the
-  // function f takes its second argument by name and may choose not to evaluate it.
+  // The arrow => in front of the argument type B means that
+  // the argument z is non-strict
+  // argument f is a function whos second argument is non-strict
   def foldRight[B](z: => B)(f: (A, => B) => B): B =
     this match {
-      // If f doesn't evaluate its second argument, the recursion never starts.
       case Cons(h,t) => f(h(), t().foldRight(z)(f))
       case _ => z
     }
@@ -69,11 +69,17 @@ object Stream {
 }
 ```
 
-The Scala specific part here is we have a singleton value for `Empty`, and a case class for `Cons`. The `Stream` companion implements `apply` so one can do `Stream(...)`
+The important Scala specific syntax here is a singleton value object called `Empty`, and a case class for `Cons`. The `Stream` companion implements `apply` so one can do `Stream(...)`.
+Also traits can refer to methods on their companion object, hence inside `trait Stream` we have `empty` and `cons`.
+
+The argument types of `cons` have the `=>` operator in front of them, which means that these arguments are not [evaluated at the point of function application, but instead at each use within the function](https://www.scala-lang.org/files/archive/spec/2.13/04-basic-declarations-and-definitions.html#by-name-parameters), hence they're not strict.
+
+In the third line of the trace above, the expressions `1` and `Stream.apply(2, 3)` are not evaluated when we pass them to `Stream.cons`  but instead when they are used inside `Stream.cons`. You'll notice that the definition of `cons` re-assigns these arguments with `lazy val`, which is like non-strictness but for variable definitions rather than arguments. `cons` passes these lazy arguments to `Cons` wrapped in a function because case classes are not allowed have lazy values. To recap, `hd` and `tl` are non-strict arguments passed to `Stream.cons`, so they are not evaluated when `Stream.cons` is called. Then inside `Stream.cons` they are made lazy so using the arguments does not evaluate them when they are wrapped in a function. Now we have a single linked list that is constructed lazily. This is nice because you could in theory build a `Stream` of very expensive expressions but they would not be evaluated until the `Stream` was traversed.
 
 Here's the trace of a `Stream` being constructed.
 
 ```scala
+
 Stream(1, 2, 3)
 Stream.apply(1, 2, 3)
 Stream.cons(1, Stream.apply(2, 3))
@@ -81,10 +87,6 @@ Stream.cons(1, Stream.cons(2, Stream.apply(3)))
 Stream.cons(1, Stream.cons(2, Stream.cons(3, Stream.apply())))
 Stream.cons(1, Stream.cons(2, Stream.cons(3, Stream.Empty)))
 ```
-
-The argument types of `cons` have the `=>` operator in front of them, which means that these arguments are not [evaluated at the point of function application, but instead at each use within the function](https://www.scala-lang.org/files/archive/spec/2.13/04-basic-declarations-and-definitions.html#by-name-parameters), hence they're not strict.
-
-In the third line of the trace above, the expressions `1` and `Stream.apply(2, 3)` are not evaluated when we pass them to `Stream.cons`  but instead when they are used inside `Stream.cons`. You'll notice that the definition of `cons` re-assigns these arguments with `lazy val`, which is like non-strictness but for variable definitions rather than arguments. `cons` passes these lazy arguments to `Cons` wrapped in a function because case classes are not allowed have lazy values. To recap, `hd` and `tl` are non-strict arguments passed to `Stream.cons`, so they are not evalued when `Stream.cons` is called. Then inside `Stream.cons` they are made lazy so using the arguments does not evaluate them when they are wrapped in a function. Now we have a single linked list that is constructed lazily. This is nice because you could in theory build a `Stream` of very expensive expressions but they would not be evaluated until the `Stream` was traversed.
 
 Back to our original problem which was to not loop through an array multiple times when using `map` and `filter`.
 The tool which we use for this is `foldRight`
@@ -128,29 +130,36 @@ Again because `cons` is call by name, re-assigns the parameters with `lazy val` 
 Now let's write a trace for our original add one and take even numbers program.
 
 ```scala
-Stream(1, 2, 3).map(_ + 1).filter(_ % 2 == 0) // _ is shorthand for an anonymous function with one arg
+// _ is shorthand for an anonymous function with one arg
+Stream(1, 2, 3).map(_ + 1).filter(_ % 2 == 0)
+
 // _ + 1 is applied to the first element and we get 2
 Stream.cons(2, Stream(2, 3).map(_ + 1)).filter(_ % 2 == 0)
+
 // _ % 2 == 0 is applied to the first element 2, it passes so the item stays
 // so now map and filter are called on the tail
 Stream.cons(2, Stream(2, 3).map(_ + 1).filter(_ % 2 == 0))
+
 // _ + 1 is applied to the second element and we get 3
 Stream.cons(2, Stream.cons(3, Stream(3).map(_ + 1)).filter(_ % 2 == 0))
+
 // _ % 2 == 0 is applied to the second element 3 and it's odd so  it's gone
 Stream.cons(2, Stream(3).map(_ + 1).filter(_ % 2 == 0))
+
 // _ + 1 is applied to the second element 3 so it's 4
 Stream.cons(2, Stream.cons(4, Stream.empty).filter(_ % 2 == 0))
+
 // _ % 2 is applied to the second element and it's even so it stays
 Stream.cons(2, Stream.cons(4, Stream.empty))
+
 // the final result is equivalent to
 Stream(2, 4)
 ```
 
 Calling `map` and `filter` won't actually evaluate the stream because they lazily construct new streams. What you can see here is that `map` and `filter`'s functions are being applied one after another to the first element, then the second and so on. This was the aha moment for me because we no longer have to repeatedly loop through a single linked list for `map` and `filter`!
-If we wanted to convert the stream to a list and evaluate everything to have the values in memory we could add a `toList` method
+If we wanted to convert the stream to a list and evaluate everything we need add a `toList` method
 
 ```scala
-// this goes into the body of 'trait Stream'
 def toList: List[A] = {
   @annotation.tailrec
   def go(s: Stream[A], acc: List[A]): List[A] = s match {
@@ -163,6 +172,11 @@ def toList: List[A] = {
 
 Since `go` starts from the right, we end up with the stream values in reverse order, hence the `.reverse` at the end. If we wanted to evaluate `Stream(1, 2, 3).map(_ + 1).filter(_ % 2 == 0)` we just put a `.toList` at the end. The caveat with the whole solution is that `foldRight` as it's written is not tail recursive, so it could stack overflow.
 
+Here's a Scalafiddle you can play with:
+{{< rawhtml >}}
+  <iframe height="400px" frameborder="0" style="width: 100%" src="https://embed.scalafiddle.io/embed?sfid=a3xtlBc/0&theme=dark&layout=v85"></iframe>
+{{< /rawhtml >}}
+
 Pretty cool huh? At this point I was curious about being able to do this in Python and JavaScript which I'm more familiar with. I found this [great article by Jeremy Fairbank on creating functional streams in JavaScript](https://blog.jeremyfairbank.com/javascript/functional-javascript-streams-2/)
 
-Python is my go-to language, so in the next post I'll implement `Stream` in Python. The challenge is that Python doesn't non-strictness or laziness the same way that Scala does.
+Python is my go-to language, so in the next post I'll implement `Stream` in Python. The challenge is that Python doesn't have non-strictness or laziness the same way that Scala does.
