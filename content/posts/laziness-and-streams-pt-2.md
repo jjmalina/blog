@@ -224,6 +224,8 @@ for i in stream_range(5, 10):
 [i for i in stream_range(5, 10)]
 ```
 
+Here's a python fiddle with all the code: https://pyfiddle.io/fiddle/5029d21b-34f4-4a34-929d-ce69d8e954dd/?i=true
+
 ## Conclusion
 
 Using the property of non-strictness which we faked in Python using `lambda`, we were able to write a purely functional `Stream` data structure that can be lazily constructed or evaluated. We saw that when we used a stateful iterator in `create_from_iterator`, it broke the referential transparency of our Stream data type and returned inconsistent results. So instead we wrote a pure helper function called `unfold` which can aid in constructing streams like the fibonacci numbers.
