@@ -15,7 +15,7 @@ The problem we're solving:
 Let's say we have an array in JavaScript and we want to transform the values and also filter them. Here we increment each number in the array and then filter to get only the even numbers.
 
 ```javascript
-[1, 2, 3].map(num => num + 1).filter(num => num % 2)
+[1, 2, 3].map(num => num + 1).filter(num => num % 2 === 0)
 ```
 
 `map` and `filter` are great because we can decompose the operations on the elements of the array into different functions. The downside is that it'll take two iterations through the array; once for map and once for filter. On small arrays we won't mind the performance hit, but on larger arrays it could be an issue. It would be best if we could use map and filter the same way without the performance cost.
@@ -179,4 +179,4 @@ Here's a Scalafiddle you can play with:
 
 Pretty cool huh? At this point I was curious about being able to do this in Python and JavaScript which I'm more familiar with. I found this [great article by Jeremy Fairbank on creating functional streams in JavaScript](https://blog.jeremyfairbank.com/javascript/functional-javascript-streams-2/)
 
-Python is my go-to language, so in the next post I'll implement `Stream` in Python. The challenge is that Python doesn't have non-strictness or laziness the same way that Scala does.
+Python is my go-to language, so in the next part I'll implement `Stream` in Python. The challenge is that Python doesn't have non-strictness or laziness the same way that Scala does.
