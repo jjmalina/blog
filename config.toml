@@ -4,6 +4,7 @@ title = ""
 theme = "hyde-hyde"
 pygmentsCodeFences = true
 pygmentsStyle = "emacs"
+googleAnalytics = "UA-151912961-1"
 
 [params]
 	authorimage = "jjm.png"
