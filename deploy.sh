@@ -9,7 +9,9 @@ printf "\033[0;32mDeploying updates to GitHub...\033[0m\n"
 hugo -t hyde-hyde # if using a theme, replace with `hugo -t <YOURTHEME>`
 
 # Go To Public folder
-cd public
+cp -r public/* ../jjmalina.github.io/
+
+cd ../jjmalina.github.io
 
 # Add changes to git.
 git add .
